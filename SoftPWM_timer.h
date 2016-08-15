@@ -32,13 +32,16 @@
 // for each timer, these macros define how to actually use it
 #if defined(USE_TIMER2)
 #define SOFTPWM_TIMER_INTERRUPT    TIMER2_COMPA_vect
+#define SOFTPWM_TIMER_INTERRUPTB    TIMER2_COMPB_vect
 #define SOFTPWM_TIMER_SET(val)     (TCNT2 = (val))
-#define SOFTPWM_TIMER_INIT(ocr) ({\
+#define SOFTPWM_TIMER_INIT(ocrA, ocrB) ({\
   TIFR2 = (1 << TOV2);    /* clear interrupt flag */ \
   TCCR2B = (1 << CS21);   /* start timer (ck/8 prescalar) */ \
   TCCR2A = (1 << WGM21);  /* CTC mode */ \
-  OCR2A = (ocr);          /* We want to have at least 30Hz or else it gets choppy */ \
+  OCR2A = (ocrA);          /* We want to have at least 30Hz or else it gets choppy */ \
+  OCR2B = (ocrB);          /* We want to have at least 30Hz or else it gets choppy */ \
   TIMSK2 = (1 << OCIE2A); /* enable timer2 output compare match interrupt */ \
+  TIMSK2 |= (1 << OCIE2B); /* enable timer2 output compare match interrupt */ \
 })
 #elif defined(USE_TIMER4_HS)
 #define SOFTPWM_TIMER_INTERRUPT    TIMER4_COMPA_vect
