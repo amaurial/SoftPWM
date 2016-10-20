@@ -36,15 +36,15 @@
  #include <WProgram.h>
 #endif
 
-#if F_CPU
-#define SOFTPWM_FREQ 60UL
-#define SOFTPWM_OCR (F_CPU/(8UL*256UL*SOFTPWM_FREQ))
-#define SOFTPWM_OCRB (F_CPU/(8UL*256UL*70))
-#else
+//#if F_CPU
+//#define SOFTPWM_FREQ 60UL
+//#define SOFTPWM_OCR (F_CPU/(8UL*256UL*SOFTPWM_FREQ))
+//#define SOFTPWM_OCRB (F_CPU/(8UL*256UL*10))
+//#else
 // 130 == 60 Hz (on 16 MHz part)
-#define SOFTPWM_OCR 130
-#define SOFTPWM_OCRB 65
-#endif
+#define SOFTPWM_OCR 130 
+#define SOFTPWM_OCRB 120 
+//#endif
 
 volatile uint8_t _isr_softcount = 0xff;
 uint8_t _softpwm_defaultPolarity = SOFTPWM_NORMAL;
@@ -69,7 +69,7 @@ softPWMChannel _softpwm_channels[SOFTPWM_MAXCHANNELS];
 fpointer func = 0;
 ISR(SOFTPWM_TIMER_INTERRUPTB){
         if (func == 0) return;
-        else (func(0));
+        else (func(1));
 }
 
 #ifdef WIRING
