@@ -1,27 +1,42 @@
-/* $Id: SoftPWM.cpp 132 2012-02-14 04:15:05Z bhagman@roguerobotics.com $
-
-  A Software PWM Library
-  
-  Written by Brett Hagman
-  http://www.roguerobotics.com/
-  bhagman@roguerobotics.com
-
-  Minor modification by Paul Stoffregen to support different timers
-
-    This library is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This library is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-*************************************************/
+/*
+|| @author         Brett Hagman <bhagman@wiring.org.co>
+|| @contribution   Paul Stoffregen (paul at pjrc dot com)
+|| @url            http://wiring.org.co/
+|| @url            http://roguerobotics.com/
+||
+|| @description
+|| | A Software PWM Library
+|| | 
+|| | Written by Brett Hagman
+|| | http://www.roguerobotics.com/
+|| | bhagman@roguerobotics.com, bhagman@wiring.org.co
+|| |
+|| | A Wiring (and Arduino) Library, for Atmel AVR8 bit series microcontrollers,
+|| | to produce PWM signals on any arbitrary pin.
+|| | 
+|| | It was originally designed for controlling the brightness of LEDs, but
+|| | could be adapted to control servos and other low frequency PWM controlled
+|| | devices as well.
+|| | 
+|| | It uses a single hardware timer (Timer 2) on the Atmel microcontroller to
+|| | generate up to 20 PWM channels (your mileage may vary).
+|| | 
+|| #
+||
+|| @license Please see the accompanying LICENSE.txt file for this project.
+||
+|| @notes
+|| | Minor modification by Paul Stoffregen to support different timers.
+|| |
+|| #
+||
+|| @name Software PWM Library
+|| @type Library
+|| @target Atmel AVR 8 Bit
+||
+|| @version 1.0.1
+||
+*/
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -36,18 +51,18 @@
  #include <WProgram.h>
 #endif
 
-//#if F_CPU
-//#define SOFTPWM_FREQ 60UL
-//#define SOFTPWM_OCR (F_CPU/(8UL*256UL*SOFTPWM_FREQ))
-//#define SOFTPWM_OCRB (F_CPU/(8UL*256UL*10))
-//#else
+#if F_CPU
+#define SOFTPWM_FREQ 78UL//60UL
+#define SOFTPWM_OCR (F_CPU/(8UL*256UL*SOFTPWM_FREQ))
+#else
 // 130 == 60 Hz (on 16 MHz part)
-#define SOFTPWM_OCR 130 
-#define SOFTPWM_OCRB 120 
-//#endif
+// 78 == 100 Hz (on 16 MHz part)
+#define SOFTPWM_OCR 78//130
+#endif
 
 volatile uint8_t _isr_softcount = 0xff;
 uint8_t _softpwm_defaultPolarity = SOFTPWM_NORMAL;
+unsigned long custom_millis = 0;
 
 typedef struct
 {
@@ -64,14 +79,12 @@ typedef struct
 
 softPWMChannel _softpwm_channels[SOFTPWM_MAXCHANNELS];
 
-
-// Here is the meat and gravy
-fpointer func = 0;
-ISR(SOFTPWM_TIMER_INTERRUPTB){
-        if (func == 0) return;
-        else (func(1));
+unsigned long getCustomMillis(){
+    // divide by 10 gets the correct value
+    return custom_millis/10;
 }
 
+// Here is the meat and gravy
 #ifdef WIRING
 void SoftPWM_Timer_Interrupt(void)
 #else
@@ -82,8 +95,9 @@ ISR(SOFTPWM_TIMER_INTERRUPT)
   int16_t newvalue;
   int16_t direction;
 
+  custom_millis++;
   if(++_isr_softcount == 0)
-  {
+  {    
     // set all channels high - let's start again
     // and accept new checkvals
     for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
@@ -144,7 +158,7 @@ ISR(SOFTPWM_TIMER_INTERRUPT)
 
 
 
-void SoftPWMBegin(uint8_t defaultPolarity, fpointer f)
+void SoftPWMBegin(uint8_t defaultPolarity)
 {
   // We can tweak the number of PWM period by changing the prescalar
   // and the OCR - we'll default to ck/8 (CS21 set) and OCR=128.
@@ -155,15 +169,13 @@ void SoftPWMBegin(uint8_t defaultPolarity, fpointer f)
 
   uint8_t i;
 
-  func = f;
-
 #ifdef WIRING
   Timer2.setMode(0b010);  // CTC
   Timer2.setClockSource(CLOCK_PRESCALE_8);
   Timer2.setOCR(CHANNEL_A, SOFTPWM_OCR);
   Timer2.attachInterrupt(INTERRUPT_COMPARE_MATCH_A, SoftPWM_Timer_Interrupt);
 #else
-  SOFTPWM_TIMER_INIT(SOFTPWM_OCR, SOFTPWM_OCRB);
+  SOFTPWM_TIMER_INIT(SOFTPWM_OCR);
 #endif
 
 

@@ -1,32 +1,45 @@
-/* $Id: SoftPWM.h 129 2011-05-27 20:37:08Z bhagman@roguerobotics.com $
-
-  A Software PWM Library
-  
-  Written by Brett Hagman
-  http://www.roguerobotics.com/
-  bhagman@roguerobotics.com
-
-    This library is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This library is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-*************************************************/
+/*
+|| @author         Brett Hagman <bhagman@wiring.org.co>
+|| @url            http://wiring.org.co/
+|| @url            http://roguerobotics.com/
+||
+|| @description
+|| | A Software PWM Library
+|| |
+|| | Written by Brett Hagman
+|| | http://www.roguerobotics.com/
+|| | bhagman@roguerobotics.com, bhagman@wiring.org.co
+|| |
+|| | A Wiring (and Arduino) Library, for Atmel AVR8 bit series microcontrollers,
+|| | to produce PWM signals on any arbitrary pin.
+|| |
+|| | It was originally designed for controlling the brightness of LEDs, but
+|| | could be adapted to control servos and other low frequency PWM controlled
+|| | devices as well.
+|| |
+|| | It uses a single hardware timer (Timer 2) on the Atmel microcontroller to
+|| | generate up to 20 PWM channels (your mileage may vary).
+|| |
+|| #
+||
+|| @license Please see the accompanying LICENSE.txt file for this project.
+||
+|| @name Software PWM Library
+|| @type Library
+|| @target Atmel AVR 8 Bit
+||
+|| @version 1.0.1
+||
+*/
 
 #ifndef SOFTPWM_H
 #define SOFTPWM_H
 
+#define SOFTPWM_VERSION 10000
+
 #include <stdint.h>
 
-#define SOFTPWM_MAXCHANNELS 10
+#define SOFTPWM_MAXCHANNELS 20
 #define SOFTPWM_PWMDEFAULT 0x00
 
 #define SOFTPWM_NORMAL 0
@@ -34,14 +47,13 @@
 
 #define ALL -1
 
-typedef void (*fpointer)(int);
-
-void SoftPWMBegin(uint8_t defaultPolarity = SOFTPWM_NORMAL, fpointer f = 0);
+void SoftPWMBegin(uint8_t defaultPolarity = SOFTPWM_NORMAL);
 void SoftPWMSet(int8_t pin, uint8_t value, uint8_t hardset = 0);
 void SoftPWMSetPercent(int8_t pin, uint8_t percent, uint8_t hardset = 0);
 void SoftPWMEnd(int8_t pin);
 void SoftPWMSetFadeTime(int8_t pin, uint16_t fadeUpTime, uint16_t fadeDownTime);
 void SoftPWMSetPolarity(int8_t pin, uint8_t polarity);
+unsigned long getCustomMillis();
 
 #endif
 
