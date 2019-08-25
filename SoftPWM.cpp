@@ -54,10 +54,12 @@
 #if F_CPU
 #define SOFTPWM_FREQ 78UL//60UL
 #define SOFTPWM_OCR (F_CPU/(8UL*256UL*SOFTPWM_FREQ))
+#define SOFTPWM_OCRB (F_CPU/(8UL*256UL*70))
 #else
 // 130 == 60 Hz (on 16 MHz part)
 // 78 == 100 Hz (on 16 MHz part)
 #define SOFTPWM_OCR 78//130
+#define SOFTPWM_OCRB 65
 #endif
 
 volatile uint8_t _isr_softcount = 0xff;
@@ -82,6 +84,12 @@ softPWMChannel _softpwm_channels[SOFTPWM_MAXCHANNELS];
 unsigned long getCustomMillis(){
     // divide by 10 gets the correct value
     return custom_millis/10;
+}
+
+fpointer func = 0;
+ISR(SOFTPWM_TIMER_INTERRUPTB){
+    if (func == 0) return;
+    else (func(1));
 }
 
 // Here is the meat and gravy
@@ -158,7 +166,7 @@ ISR(SOFTPWM_TIMER_INTERRUPT)
 
 
 
-void SoftPWMBegin(uint8_t defaultPolarity)
+void SoftPWMBegin(uint8_t defaultPolarity, fpointer f)
 {
   // We can tweak the number of PWM period by changing the prescalar
   // and the OCR - we'll default to ck/8 (CS21 set) and OCR=128.
@@ -175,10 +183,11 @@ void SoftPWMBegin(uint8_t defaultPolarity)
   Timer2.setOCR(CHANNEL_A, SOFTPWM_OCR);
   Timer2.attachInterrupt(INTERRUPT_COMPARE_MATCH_A, SoftPWM_Timer_Interrupt);
 #else
-  SOFTPWM_TIMER_INIT(SOFTPWM_OCR);
+  //SOFTPWM_TIMER_INIT(SOFTPWM_OCR);
+  SOFTPWM_TIMER_INIT(SOFTPWM_OCR, SOFTPWM_OCRB);
 #endif
 
-
+  func = f;
 
   for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
   {
