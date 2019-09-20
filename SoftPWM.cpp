@@ -42,29 +42,26 @@
 #include <avr/interrupt.h>
 #include "SoftPWM.h"
 #include "SoftPWM_timer.h"
+#include <Arduino.h>
 
-#if defined(WIRING)
- #include <Wiring.h>
-#elif ARDUINO >= 100
- #include <Arduino.h>
-#else
- #include <WProgram.h>
-#endif
+// see http://www.8bit-era.cz/arduino-timer-interrupts-calculator.html
+// or https://eleccelerator.com/avr-timer-calculator/
+//#if F_CPU
+//#define SOFTPWM_FREQ 1000000UL // 1Mhertz
+//#define SOFTPWM_OCR (F_CPU/(64UL*SOFTPWM_FREQ) - 1)
+//#define SOFTPWM_OCRB (F_CPU/(64UL*SOFTPWM_FREQ))//100 hertz - overflow count of 9, total ticks 2500, remainder ticks 196
+//#else
 
-#if F_CPU
-#define SOFTPWM_FREQ 78UL//60UL
-#define SOFTPWM_OCR (F_CPU/(8UL*256UL*SOFTPWM_FREQ))
-#define SOFTPWM_OCRB (F_CPU/(8UL*256UL*70))
-#else
-// 130 == 60 Hz (on 16 MHz part)
-// 78 == 100 Hz (on 16 MHz part)
-#define SOFTPWM_OCR 78//130
-#define SOFTPWM_OCRB 65
-#endif
+#define SOFTPWM_OCR 130
+#define SOFTPWM_OCRB 130
+//#endif
 
 volatile uint8_t _isr_softcount = 0xff;
+volatile uint16_t _isrb_count = 0; // we want 2500 ticks
+volatile uint16_t _isr_milli = 0; // we want 2500 ticks
 uint8_t _softpwm_defaultPolarity = SOFTPWM_NORMAL;
 unsigned long custom_millis = 0;
+unsigned long custom_micros = 0;
 
 typedef struct
 {
@@ -81,92 +78,98 @@ typedef struct
 
 softPWMChannel _softpwm_channels[SOFTPWM_MAXCHANNELS];
 
-unsigned long getCustomMillis(){
-    // divide by 10 gets the correct value
+unsigned long getCustomMillis(){        
     return custom_millis/10;
 }
 
+unsigned long getCustomMicros(){
+    return custom_millis*10000;
+}
+
 fpointer func = 0;
-ISR(SOFTPWM_TIMER_INTERRUPTB){
-    if (func == 0) return;
-    else (func(1));
+ISR(SOFTPWM_TIMER_INTERRUPTB){    
+    if (++_isrb_count == 50000){
+        _isrb_count = 0;
+        if (func == 0) return;
+        else (func(1));
+    }
 }
 
 // Here is the meat and gravy
-#ifdef WIRING
-void SoftPWM_Timer_Interrupt(void)
-#else
+/*
+* this function will be called every millisecond, frequency  of 1 kHz
+*/
 ISR(SOFTPWM_TIMER_INTERRUPT)
-#endif
 {
-  uint8_t i;
-  int16_t newvalue;
-  int16_t direction;
+    uint8_t i;
+    int16_t newvalue;
+    int16_t direction;
+    //custom_micros++;
+    //custom_millis++;    
+    if(++_isr_softcount == 0) // this logic runs every 255ms
+    {    
+        // set all channels high - let's start again
+        // and accept new checkvals
+        for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
+        {
+        if (_softpwm_channels[i].fadeuprate > 0 || _softpwm_channels[i].fadedownrate > 0)
+        {
+            // we want to fade to the new value
+            direction = _softpwm_channels[i].pwmvalue - _softpwm_channels[i].checkval;
 
-  custom_millis++;
-  if(++_isr_softcount == 0)
-  {    
-    // set all channels high - let's start again
-    // and accept new checkvals
+            // we will default to jumping to the new value
+            newvalue = _softpwm_channels[i].pwmvalue;
+
+            if (direction > 0 && _softpwm_channels[i].fadeuprate > 0)
+            {
+            newvalue = _softpwm_channels[i].checkval + _softpwm_channels[i].fadeuprate;
+            if (newvalue > _softpwm_channels[i].pwmvalue)
+                newvalue = _softpwm_channels[i].pwmvalue;
+            }
+            else if (direction < 0 && _softpwm_channels[i].fadedownrate > 0)
+            {
+            newvalue = _softpwm_channels[i].checkval - _softpwm_channels[i].fadedownrate;
+            if (newvalue < _softpwm_channels[i].pwmvalue)
+                newvalue = _softpwm_channels[i].pwmvalue;
+            }
+
+            _softpwm_channels[i].checkval = newvalue;
+        }
+        else  // just set the channel to the new value
+            _softpwm_channels[i].checkval = _softpwm_channels[i].pwmvalue;
+
+        // now set the pin high (if not 0)
+        if (_softpwm_channels[i].checkval > 0)  // don't set if checkval == 0
+        {
+            if (_softpwm_channels[i].polarity == SOFTPWM_NORMAL)
+            *_softpwm_channels[i].outport |= _softpwm_channels[i].pinmask;
+            else
+            *_softpwm_channels[i].outport &= ~(_softpwm_channels[i].pinmask);
+        }
+
+        }
+    }
+
     for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
     {
-      if (_softpwm_channels[i].fadeuprate > 0 || _softpwm_channels[i].fadedownrate > 0)
-      {
-        // we want to fade to the new value
-        direction = _softpwm_channels[i].pwmvalue - _softpwm_channels[i].checkval;
-
-        // we will default to jumping to the new value
-        newvalue = _softpwm_channels[i].pwmvalue;
-
-        if (direction > 0 && _softpwm_channels[i].fadeuprate > 0)
+        if (_softpwm_channels[i].pin >= 0)  // if it's a valid pin
         {
-          newvalue = _softpwm_channels[i].checkval + _softpwm_channels[i].fadeuprate;
-          if (newvalue > _softpwm_channels[i].pwmvalue)
-            newvalue = _softpwm_channels[i].pwmvalue;
-        }
-        else if (direction < 0 && _softpwm_channels[i].fadedownrate > 0)
+        if (_softpwm_channels[i].checkval == _isr_softcount)  // if we have hit the width
         {
-          newvalue = _softpwm_channels[i].checkval - _softpwm_channels[i].fadedownrate;
-          if (newvalue < _softpwm_channels[i].pwmvalue)
-            newvalue = _softpwm_channels[i].pwmvalue;
+            // turn off the channel
+            if (_softpwm_channels[i].polarity == SOFTPWM_NORMAL)
+            *_softpwm_channels[i].outport &= ~(_softpwm_channels[i].pinmask);
+            else
+            *_softpwm_channels[i].outport |= _softpwm_channels[i].pinmask;
         }
-
-        _softpwm_channels[i].checkval = newvalue;
-      }
-      else  // just set the channel to the new value
-        _softpwm_channels[i].checkval = _softpwm_channels[i].pwmvalue;
-
-      // now set the pin high (if not 0)
-      if (_softpwm_channels[i].checkval > 0)  // don't set if checkval == 0
-      {
-        if (_softpwm_channels[i].polarity == SOFTPWM_NORMAL)
-          *_softpwm_channels[i].outport |= _softpwm_channels[i].pinmask;
-        else
-          *_softpwm_channels[i].outport &= ~(_softpwm_channels[i].pinmask);
-      }
-
-    }
-  }
-
-  for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
-  {
-    if (_softpwm_channels[i].pin >= 0)  // if it's a valid pin
-    {
-      if (_softpwm_channels[i].checkval == _isr_softcount)  // if we have hit the width
-      {
-        // turn off the channel
-        if (_softpwm_channels[i].polarity == SOFTPWM_NORMAL)
-          *_softpwm_channels[i].outport &= ~(_softpwm_channels[i].pinmask);
-        else
-          *_softpwm_channels[i].outport |= _softpwm_channels[i].pinmask;
-      }
-    }
-  }  
+        }
+    }  
 }
 
 
 
-void SoftPWMBegin(uint8_t defaultPolarity, fpointer f)
+//void SoftPWMBegin(uint8_t defaultPolarity, fpointer f)
+void SoftPWMBegin(uint8_t defaultPolarity)
 {
   // We can tweak the number of PWM period by changing the prescalar
   // and the OCR - we'll default to ck/8 (CS21 set) and OCR=128.
@@ -177,17 +180,10 @@ void SoftPWMBegin(uint8_t defaultPolarity, fpointer f)
 
   uint8_t i;
 
-#ifdef WIRING
-  Timer2.setMode(0b010);  // CTC
-  Timer2.setClockSource(CLOCK_PRESCALE_8);
-  Timer2.setOCR(CHANNEL_A, SOFTPWM_OCR);
-  Timer2.attachInterrupt(INTERRUPT_COMPARE_MATCH_A, SoftPWM_Timer_Interrupt);
-#else
-  //SOFTPWM_TIMER_INIT(SOFTPWM_OCR);
-  SOFTPWM_TIMER_INIT(SOFTPWM_OCR, SOFTPWM_OCRB);
-#endif
+  SOFTPWM_TIMER_INIT(SOFTPWM_OCR);
+  //SOFTPWM_TIMER_INIT(SOFTPWM_OCR, SOFTPWM_OCRB);
 
-  func = f;
+  //func = f;
 
   for (i = 0; i < SOFTPWM_MAXCHANNELS; i++)
   {

@@ -47,13 +47,15 @@
 
 #define ALL -1
 typedef void (*fpointer)(int);
-void SoftPWMBegin(uint8_t defaultPolarity = SOFTPWM_NORMAL, fpointer f = 0);
+//void SoftPWMBegin(uint8_t defaultPolarity = SOFTPWM_NORMAL, fpointer f = 0);
+void SoftPWMBegin(uint8_t defaultPolarity = SOFTPWM_NORMAL);
 void SoftPWMSet(int8_t pin, uint8_t value, uint8_t hardset = 0);
 void SoftPWMSetPercent(int8_t pin, uint8_t percent, uint8_t hardset = 0);
 void SoftPWMEnd(int8_t pin);
 void SoftPWMSetFadeTime(int8_t pin, uint16_t fadeUpTime, uint16_t fadeDownTime);
 void SoftPWMSetPolarity(int8_t pin, uint8_t polarity);
 unsigned long getCustomMillis();
+unsigned long getCustomMicros();
 
 #endif
 
